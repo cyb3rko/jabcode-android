@@ -1,0 +1,3 @@
+[submodule "jabcode"]
+	path = jabcode
+	url = https://github.com/jabcode/jabcode.git
