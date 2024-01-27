@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "JAB Code Reader"
 include(":app")
+include(":lib")

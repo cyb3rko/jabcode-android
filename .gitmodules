@@ -1,3 +1,3 @@
-[submodule "jabcode"]
-	path = jabcode
+[submodule "lib/native"]
+	path = lib/native
 	url = https://github.com/jabcode/jabcode.git

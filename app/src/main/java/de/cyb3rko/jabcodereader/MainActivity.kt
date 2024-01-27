@@ -16,6 +16,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import de.cyb3rko.jabcodelib.JabCodeLib
 import de.cyb3rko.jabcodereader.databinding.ActivityMainBinding
 import java.io.File
 import java.io.FileOutputStream
@@ -29,13 +30,9 @@ class MainActivity : AppCompatActivity(), CameraPreview.PreviewReadyCallback {
     private var cameraOrientation = 0
     private var cameraPreview: CameraPreview? = null
     private var detecting = false
-
-    external fun detect(): Int
+    private val jabCodeLib by lazy { JabCodeLib() }
 
     companion object {
-        init {
-            System.loadLibrary("jabcodelib")
-        }
         private const val BEEP_DURATION = 800
         private const val VIBRATE_DURATION = 200L
     }
@@ -113,7 +110,7 @@ class MainActivity : AppCompatActivity(), CameraPreview.PreviewReadyCallback {
                 FileOutputStream(file).use {
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
                 }
-                val returnCode = detect()
+                val returnCode = jabCodeLib.detect()
                 if (returnCode == 0) {
                     toast?.cancel()
                     runOnUiThread {
