@@ -1,35 +1,42 @@
 package de.cyb3rko.jabcodereader
 
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.hardware.Camera
-import android.hardware.Camera.PreviewCallback
 import android.media.AudioManager
 import android.media.ToneGenerator
-import android.os.AsyncTask
 import android.os.Bundle
 import android.os.Vibrator
 import android.util.Log
-import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.Camera
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
+import com.google.common.util.concurrent.ListenableFuture
 import de.cyb3rko.jabcodelib.JabCodeLib
 import de.cyb3rko.jabcodereader.databinding.ActivityMainBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
-import java.nio.charset.Charset
 
-class MainActivity : AppCompatActivity(), CameraPreview.PreviewReadyCallback {
+class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
 
-    private var camera: Camera? = null
-    private var cameraOrientation = 0
-    private var cameraPreview: CameraPreview? = null
-    private var detecting = false
+    private lateinit var cameraProviderFuture : ListenableFuture<ProcessCameraProvider>
+    private lateinit var camera: Camera
+    private val toast: Toast by lazy { Toast.makeText(applicationContext, "JAB found", Toast.LENGTH_SHORT) }
+    private var capturingJob: Job? = null
     private val jabCodeLib by lazy { JabCodeLib() }
 
     companion object {
@@ -51,128 +58,92 @@ class MainActivity : AppCompatActivity(), CameraPreview.PreviewReadyCallback {
         return context.packageManager.hasSystemFeature("android.hardware.camera")
     }
 
-    private fun loadApplication() {
-        cameraPreview = CameraPreview(this)
-        camera = cameraPreview!!.camera
-        cameraPreview!!.setOnPreviewReady(this)
-        (binding.container as ViewGroup).addView(cameraPreview, 0)
-    }
-
     private fun checkPermission() {
         if (checkSelfPermission("android.permission.CAMERA") == PackageManager.PERMISSION_GRANTED) {
             Log.v("TAG", "Camera Permission is granted")
+            initCamera()
         } else {
             Log.v("TAG", "Camera Permission is revoked")
             ActivityCompat.requestPermissions(this, arrayOf("android.permission.CAMERA"), 1)
         }
     }
 
-    override fun onSupportNavigateUp(): Boolean {
-        finish()
-        return false
+    private fun initCamera() {
+        cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+        cameraProviderFuture.addListener({
+            val cameraProvider = cameraProviderFuture.get()
+            bindPreview(cameraProvider)
+        }, ContextCompat.getMainExecutor(this))
     }
 
-    override fun onPreviewFrame(bitmap: Bitmap?, bArr: ByteArray?, i: Int) {
-        if (!detecting) {
-            bitmap?.let {
-                val detectionTaskParams = DetectionTaskParams(bitmap, bArr!!)
-                DetectionTask().execute(*arrayOf(detectionTaskParams))
+    private fun bindPreview(cameraProvider: ProcessCameraProvider) {
+        val preview = Preview.Builder()
+            .build()
+        val cameraSelector = CameraSelector.Builder()
+            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+            .build()
+        preview.setSurfaceProvider(binding.previewView.surfaceProvider)
+        camera = cameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, preview)
+        binding.previewView.previewStreamState.observe(this as LifecycleOwner) { streamState ->
+            if (streamState == PreviewView.StreamState.STREAMING) { // if preview visible
+                println("Ready...")
+                lifecycleScope.launch(Dispatchers.IO) {
+                    runCodeDetection { result ->
+                        print("Result: $result")
+                        if (result.toInt() == 0) {
+                            playBeepSound()
+                            toast.cancel()
+                            toast.show()
+                            playBeepSound()
+                            (getSystemService(VIBRATOR_SERVICE) as Vibrator).vibrate(VIBRATE_DURATION)
+                        }
+                    }
+                }
+            } else if (streamState == PreviewView.StreamState.IDLE) { // if preview not visible
+                println("Not ready...")
             }
         }
-        cameraOrientation = i
+    }
+
+    private suspend fun runCodeDetection(onResult: (result: String) -> Unit) {
+        while (true) {
+            println("New run...")
+            if (binding.previewView.previewStreamState.value != PreviewView.StreamState.STREAMING) {
+                break
+            }
+            val file = File(applicationContext.cacheDir, "feed.png")
+            val bitmap = withContext(Dispatchers.Main) {
+                binding.previewView.bitmap
+            } ?: continue
+            FileOutputStream(file).use {
+                bitmap.compress(Bitmap.CompressFormat.PNG, 80, it)
+            }
+            val returnCode = jabCodeLib.detect()
+            withContext(Dispatchers.Main) {
+                onResult(returnCode.toString())
+            }
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        if (camera == null) {
-            loadApplication()
+        if (::cameraProviderFuture.isInitialized && cameraProviderFuture.get() != null) {
+            println("Continue capturing job...")
+            capturingJob?.start()
         }
     }
 
-    override fun onStop() {
-        super.onStop()
-        camera = null
+    override fun onPause() {
+        super.onPause()
+        println("Pause capturing job...")
+        capturingJob?.cancel()
     }
 
-    private class DetectionTaskParams(
-        var bitmap: Bitmap,
-        var bitmapBytes: ByteArray
-    )
-
-    private inner class DetectionTask : AsyncTask<DetectionTaskParams?, Int?, ByteArray>() {
-        var toast: Toast? = null
-
-        @Deprecated("Deprecated in Java")
-        override fun doInBackground(vararg params: DetectionTaskParams?): ByteArray {
-            params[0]?.bitmap?.let { bitmap ->
-//                return detect(bitmap.convertToByteArray())
-                val file = File(applicationContext.cacheDir, "feed.png")
-                FileOutputStream(file).use {
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-                }
-                val returnCode = jabCodeLib.detect()
-                if (returnCode == 0) {
-                    toast?.cancel()
-                    runOnUiThread {
-                        toast = Toast.makeText(applicationContext, "JAB found", Toast.LENGTH_SHORT)
-                        toast!!.show()
-                        playBeepSound()
-                        (getSystemService(VIBRATOR_SERVICE) as Vibrator).vibrate(VIBRATE_DURATION)
-                    }
-                }
-                return byteArrayOf()
-            }
-            return byteArrayOf()
-        }
-
-        @Deprecated("Deprecated in Java")
-        public override fun onPreExecute() {
-            super.onPreExecute()
-            this@MainActivity.detecting = true
-        }
-
-        @Deprecated("Deprecated in Java")
-        override fun onProgressUpdate(vararg numArr: Int?) {
-            super.onProgressUpdate(*numArr)
-        }
-
-        @Deprecated("Deprecated in Java")
-        public override fun onPostExecute(result: ByteArray?) {
-            detecting = false
-//            println("Returned, ${result?.size}")
-//            if (returnObject != null) {
-//                onDetectionTaskComplete(returnObject)
-//            }
-        }
-    }
-
-    fun playBeepSound() {
+    private fun playBeepSound() {
         ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100).startTone(
             ToneGenerator.TONE_PROP_BEEP,
             BEEP_DURATION
         )
-    }
-
-    private fun onDetectionTaskComplete(returnObject: ReturnObject) {
-        val str: String
-        val status = returnObject.status
-        str = if (status != 1) {
-            if (status != 3) BuildConfig.BUILD_TYPE else String(
-                returnObject.data,
-                Charset.forName("ISO-8859-15")
-            )
-        } else {
-            BuildConfig.BUILD_TYPE
-        }
-        if (str.isNotEmpty()) {
-            camera!!.stopPreview()
-            camera!!.setPreviewCallback(null as PreviewCallback?)
-            val intent = Intent(applicationContext, Result::class.java)
-            intent.putExtra("result", str)
-            startActivity(intent)
-        } else if (camera != null) {
-            cameraPreview!!.takePicture()
-        }
     }
 
     // Thanks to https://stackoverflow.com/a/47755479
