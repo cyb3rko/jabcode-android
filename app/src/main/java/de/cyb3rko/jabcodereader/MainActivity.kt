@@ -89,14 +89,13 @@ class MainActivity : AppCompatActivity() {
                 println("Ready...")
                 lifecycleScope.launch(Dispatchers.IO) {
                     runCodeDetection { result ->
-                        print("Result: $result")
-                        if (result.toInt() == 0) {
-                            playBeepSound()
-                            toast.cancel()
-                            toast.show()
-                            playBeepSound()
-                            (getSystemService(VIBRATOR_SERVICE) as Vibrator).vibrate(VIBRATE_DURATION)
-                        }
+                        playBeepSound()
+                        toast.cancel()
+                        toast.show()
+                        playBeepSound()
+                        (getSystemService(VIBRATOR_SERVICE) as Vibrator).vibrate(VIBRATE_DURATION)
+                        println("Result Size: ${result.size}")
+                        println("Result: ${result.decodeToString()}")
                     }
                 }
             } else if (streamState == PreviewView.StreamState.IDLE) { // if preview not visible
@@ -105,7 +104,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun runCodeDetection(onResult: (result: String) -> Unit) {
+    private suspend fun runCodeDetection(onResult: (result: ByteArray) -> Unit) {
         while (true) {
             println("New run...")
             if (binding.previewView.previewStreamState.value != PreviewView.StreamState.STREAMING) {
@@ -118,9 +117,11 @@ class MainActivity : AppCompatActivity() {
             FileOutputStream(file).use {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 80, it)
             }
-            val returnCode = jabCodeLib.detect()
+            val result = jabCodeLib.detect()
             withContext(Dispatchers.Main) {
-                onResult(returnCode.toString())
+                if (result != null) {
+                    onResult(result)
+                }
             }
         }
     }

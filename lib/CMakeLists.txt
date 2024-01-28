@@ -43,6 +43,7 @@ add_library(${PROJECT_NAME} SHARED
 )
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,-Bsymbolic")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-Bsymbolic")
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
   android

@@ -5,5 +5,5 @@ class JabCodeLib {
         System.loadLibrary("jabcodelib")
     }
 
-    external fun detect(): Int
+    external fun detect(): ByteArray?
 }
