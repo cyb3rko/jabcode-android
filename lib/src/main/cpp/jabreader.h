@@ -3,4 +3,4 @@
 
 int main(int argc, char *argv[]);
 
-#endif //JAB_CODE_READER_JABREADER_H
+#endif  // JAB_CODE_READER_JABREADER_H
