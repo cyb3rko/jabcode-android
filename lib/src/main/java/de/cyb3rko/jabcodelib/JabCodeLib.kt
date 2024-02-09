@@ -5,5 +5,5 @@ class JabCodeLib {
         System.loadLibrary("jabcodelib")
     }
 
-    external fun detect(): ByteArray?
+    external fun detect(imagePath: String): ByteArray?
 }

@@ -117,7 +117,7 @@ class MainActivity : AppCompatActivity() {
             FileOutputStream(file).use {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 80, it)
             }
-            val result = jabCodeLib.detect()
+            val result = jabCodeLib.detect(file.absolutePath)
             withContext(Dispatchers.Main) {
                 if (result != null) {
                     onResult(result)

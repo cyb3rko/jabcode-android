@@ -18,10 +18,10 @@ jbyteArray charArrayToByteArray(JNIEnv *env, const char *data, const int data_le
  * @brief JABCode reader modified main function
  * @return jByteArray containing JABCode content
  */
-jbyteArray detect(JNIEnv *env, char *path) {
+jbyteArray detect(JNIEnv *env, const char *path) {
     // load image
     jab_bitmap *bitmap;
-    bitmap = readImage(path);
+    bitmap = readImage((jab_char *) path);
     if (bitmap == NULL) return NULL;
 
     // find and decode JABCode in the image
@@ -50,6 +50,8 @@ jbyteArray detect(JNIEnv *env, char *path) {
 }
 
 JNIEXPORT jbyteArray JNICALL Java_de_cyb3rko_jabcodelib_JabCodeLib_detect(JNIEnv *env,
-                                                                          jobject thiz) {
-    return detect(env, "/data/user/0/de.cyb3rko.jabcodereader/cache/feed.png");
+                                                                          __attribute__((unused))
+                                                                          jobject thiz,
+                                                                          jstring imagePath) {
+    return detect(env, (*env)->GetStringUTFChars(env, imagePath, JNI_FALSE));
 }
