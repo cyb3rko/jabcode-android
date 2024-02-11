@@ -20,6 +20,13 @@
 
 #include "jabcode.h"
 
+/**
+ * @brief Helper function to convert char arrays to byte arrays
+ * @param env the JNIEnv instance to allocate ByteArrays with
+ * @param data the char array to be converted
+ * @param data_length the char array length
+ * @return jByteArray containing the char array content
+ */
 jbyteArray charArrayToByteArray(JNIEnv *env, const char *data, const int data_length) {
     jbyteArray array = (*env)->NewByteArray(env, data_length);
     jbyte *bytes = (*env)->GetByteArrayElements(env, array, 0);
@@ -33,6 +40,8 @@ jbyteArray charArrayToByteArray(JNIEnv *env, const char *data, const int data_le
 
 /**
  * @brief JABCode reader modified main function
+ * @param env the JNIEnv instance to allocate byte arrays with
+ * @param path the absolute path of the image to be analyzed
  * @return jByteArray containing JABCode content
  */
 jbyteArray detect(JNIEnv *env, const char *path) {
@@ -66,6 +75,13 @@ jbyteArray detect(JNIEnv *env, const char *path) {
     return array;
 }
 
+/**
+ * @brief JNICall to the Kotlin 'detect' function
+ * @param env the JNIEnv instance
+ * @param thiz the calling Java object (unused)
+ * @param imagePath the absolute path of the image to be analyzed
+ * @return jByteArray containing JABCode content
+ */
 JNIEXPORT jbyteArray JNICALL Java_de_cyb3rko_jabcodelib_JabCodeLib_detect(JNIEnv *env,
                                                                           __attribute__((unused))
                                                                           jobject thiz,

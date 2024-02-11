@@ -17,10 +17,25 @@
 
 package de.cyb3rko.jabcodelib
 
+/**
+ * Native interface between the native jabcode implementation and Kotlin/Java
+ * applications.
+ *
+ * @author Niko Diamadis (niko@cyb3rko.de)
+ */
 class JabCodeLib {
+    // Load the native library when creating an object of the class.
     init {
         System.loadLibrary("jabcodelib")
     }
 
+    /**
+     * Native interface between the jabcode implementation and Kotlin/Java
+     * applications.
+     *
+     * @param imagePath the absolute path of the image to be analyzed
+     * @return [ByteArray] containing raw data as found in the code, null if
+     * nothing found inside the image.
+     */
     external fun detect(imagePath: String): ByteArray?
 }
