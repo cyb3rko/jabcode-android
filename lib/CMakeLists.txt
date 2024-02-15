@@ -17,9 +17,7 @@ set(SOURCES
   ${JABCODE_SRC_PATH}/jabcode/pseudo_random.c
   ${JABCODE_SRC_PATH}/jabcode/sample.c
   ${JABCODE_SRC_PATH}/jabcode/transform.c
-  ${JABCODE_SRC_PATH}/jabcodeReader/jabreader.c
   ${JABCODE_EXTENSIONS_PATH}/jabcodelib.c
-  ${JABCODE_EXTENSIONS_PATH}/jabreader.h
 )
 
 add_library(libpng STATIC IMPORTED)
