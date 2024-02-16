@@ -20,19 +20,41 @@
 
 #include "jabcode.h"
 
-jab_data* 		data = 0;
-jab_char* 		filename = 0;
-jab_int32 		color_number = 0;
-jab_int32 		symbol_number = 0;
-jab_int32 		module_size = 0;
-jab_int32		master_symbol_width = 0;
-jab_int32 		master_symbol_height= 0;
-jab_int32* 		symbol_positions = 0;
-jab_int32 		symbol_positions_number = 0;
-jab_vector2d* 	symbol_versions = 0;
-jab_int32 		symbol_versions_number = 0;
-jab_int32* 		symbol_ecc_levels = 0;
-jab_int32		color_space = 0;
+jab_data *data = 0;
+jab_char *filename = 0;
+jab_int32 color_number = 0;
+jab_int32 symbol_number = 0;
+jab_int32 module_size = 0;
+jab_int32 master_symbol_width = 0;
+jab_int32 master_symbol_height = 0;
+jab_int32 *symbol_positions = 0;
+jab_int32 symbol_positions_number = 0;
+jab_vector2d *symbol_versions = 0;
+jab_int32 symbol_versions_number = 0;
+jab_int32 *symbol_ecc_levels = 0;
+jab_int32 color_space = 0;
+jclass optionsClass;
+
+struct {
+    const char *integer;
+} JAVA_TYPES = {"I"};
+
+/**
+ * @brief Helper function to fetch a field ID of a Java object
+ */
+jfieldID getJavaFieldId(JNIEnv *env, jobject object, const char *fieldName, const char *fieldType) {
+    if (optionsClass == NULL) optionsClass = (*env)->GetObjectClass(env, object);
+    jfieldID fid = (*env)->GetFieldID(env, optionsClass, fieldName, fieldType);
+    return fid;
+}
+
+/**
+ * @brief Helper function to fetch an integer attribute of a Java object
+ */
+int getJavaIntField(JNIEnv *env, jobject object, const char *fieldName, const char *fieldType) {
+    jfieldID fid = getJavaFieldId(env, object, fieldName, fieldType);
+    return (*env)->GetIntField(env, object, fid);
+}
 
 /**
  * @brief Helper function to convert char arrays to byte arrays
@@ -54,9 +76,8 @@ jbyteArray charArrayToByteArray(JNIEnv *env, const char *data, const int data_le
 
 /**
  * @brief Free allocated buffers
-*/
-void cleanMemory()
-{
+ */
+void cleanMemory() {
     free(data);
     free(symbol_positions);
     free(symbol_versions);
@@ -64,29 +85,28 @@ void cleanMemory()
 }
 
 /**
- * @brief Parse command line parameters
+ * @brief Parse generation parameters
  * @return 1: success | 0: failure
-*/
-jab_boolean parseCommandLineParameters(const char *sourcePath,const char *imagePath) {
-    FILE* fp = fopen(sourcePath, "rb");
-    if(!fp)
-    {
+ */
+jab_boolean parseCommandLineParameters(JNIEnv *env, const char *sourcePath, const char *imagePath,
+                                       jobject options) {
+    // --input logic
+    FILE *fp = fopen(sourcePath, "rb");
+    if (!fp) {
         reportError("Opening input data file failed");
         return 0;
     }
     jab_int32 file_size;
     fseek(fp, 0, SEEK_END);
     file_size = ftell(fp);
-    if(data) free(data);
-    data = (jab_data *)malloc(sizeof(jab_data) + file_size * sizeof(jab_char));
-    if(!data)
-    {
+    if (data) free(data);
+    data = (jab_data *) malloc(sizeof(jab_data) + file_size * sizeof(jab_char));
+    if (!data) {
         reportError("Memory allocation for input data failed");
         return 0;
     }
     fseek(fp, 0, SEEK_SET);
-    if(fread(data->data, 1, file_size, fp) != file_size)
-    {
+    if (fread(data->data, 1, file_size, fp) != file_size) {
         reportError("Reading input data file failed");
         free(data);
         fclose(fp);
@@ -98,43 +118,55 @@ jab_boolean parseCommandLineParameters(const char *sourcePath,const char *imageP
     // --output logic
     filename = (jab_char *) imagePath;
 
-    //check input
-    if(!data)
-    {
+    if (options != NULL) {
+        // --color-number logic
+        int tmp = getJavaIntField(env, options, "colorNumber", JAVA_TYPES.integer);
+        if (tmp != 8) {
+            color_number = tmp;
+            if (color_number != 4) {
+                reportError("Invalid color number. Supported color number includes 4 and 8.");
+                return 0;
+            }
+        }
+        // --module-size logic
+        tmp = getJavaIntField(env, options, "moduleSize", JAVA_TYPES.integer);
+        if (tmp != 12) {
+            module_size = tmp;
+            if (module_size < 0) {
+                printf("Invalid moduleSize. Number must be non-negative.");
+                return 0;
+            }
+        }
+    }
+
+    // check input
+    if (!data) {
         reportError("Input data missing");
         return 0;
-    }
-    else if(data->length == 0)
-    {
+    } else if (data->length == 0) {
         reportError("Input data is empty");
         return 0;
     }
-    if(!filename)
-    {
+    if (!filename) {
         reportError("Output file missing");
         return 0;
     }
-    if(symbol_number == 0)
-    {
+    if (symbol_number == 0) {
         symbol_number = 1;
     }
 
-    //check input
-    if(symbol_number == 1 && symbol_positions)
-    {
-        if(symbol_positions[0] != 0)
-        {
+    // check input
+    if (symbol_number == 1 && symbol_positions) {
+        if (symbol_positions[0] != 0) {
             reportError("Incorrect symbol position value for master symbol.");
             return 0;
         }
     }
-    if(symbol_number > 1 && symbol_positions_number != symbol_number)
-    {
+    if (symbol_number > 1 && symbol_positions_number != symbol_number) {
         reportError("Symbol position information is incomplete for multi-symbol code");
         return 0;
     }
-    if (symbol_number > 1 && symbol_versions_number != symbol_number)
-    {
+    if (symbol_number > 1 && symbol_versions_number != symbol_number) {
         reportError("Symbol version information is incomplete for multi-symbol code");
         return 0;
     }
@@ -143,7 +175,7 @@ jab_boolean parseCommandLineParameters(const char *sourcePath,const char *imageP
 
 /**
  * @brief JABCode reader modified main function
- * @param env the JNIEnv instance to allocate byte arrays with
+ * @param env the JNIEnv instance using for allocating byte arrays
  * @param path the absolute path of the image to be analyzed
  * @return jByteArray containing JABCode content
  */
@@ -179,76 +211,59 @@ jbyteArray detect(JNIEnv *env, const char *path) {
 }
 
 /**
- * @brief JABCode reader modified main function
- * @param env the JNIEnv instance to allocate byte arrays with
- * @param data the data to be included in the code
- * @param path the absolute path of the image to be analyzed
- * @return jByteArray containing JABCode content
+ * @brief JABCode writer modified main function
+ * @param env the JNIEnv instance used for reading Java object fields
+ * @param sourcePath the absolute path of the file containing data to be included in the code
+ * @param imagePath the absolute path of the image to be analyzed
+ * @param options the options object containing configuration
+ * @param clearSource wether to delete the source file after successful generation
+ * @return 1: success | 0: failure
  */
-jab_int32 generate(
-        const JNIEnv *env,
-        const char *sourcePath,
-        const char *imagePath,
-        jboolean clearSource
-) {
-    if(!parseCommandLineParameters(sourcePath, imagePath))
-    {
+jab_int32 generate(JNIEnv *env, const char *sourcePath, const char *imagePath, jobject options,
+                   jboolean clearSource) {
+    if (!parseCommandLineParameters(env, sourcePath, imagePath, options)) {
         return 1;
     }
 
-    //create encode parameter object
-    jab_encode* enc = createEncode(color_number, symbol_number);
-    if(enc == NULL)
-    {
+    // create encode parameter object
+    jab_encode *enc = createEncode(color_number, symbol_number);
+    if (enc == NULL) {
         cleanMemory();
         reportError("Creating encode parameter failed");
         return 1;
     }
-    if(module_size > 0)
-    {
+    if (module_size > 0) {
         enc->module_size = module_size;
     }
-    if(master_symbol_width > 0)
-    {
+    if (master_symbol_width > 0) {
         enc->master_symbol_width = master_symbol_width;
     }
-    if(master_symbol_height > 0)
-    {
+    if (master_symbol_height > 0) {
         enc->master_symbol_height = master_symbol_height;
     }
-    for(jab_int32 loop=0; loop<symbol_number; loop++)
-    {
-        if(symbol_ecc_levels)
-            enc->symbol_ecc_levels[loop] = symbol_ecc_levels[loop];
-        if(symbol_versions)
-            enc->symbol_versions[loop] = symbol_versions[loop];
-        if(symbol_positions)
-            enc->symbol_positions[loop] = symbol_positions[loop];
+    for (jab_int32 loop = 0; loop < symbol_number; loop++) {
+        if (symbol_ecc_levels) enc->symbol_ecc_levels[loop] = symbol_ecc_levels[loop];
+        if (symbol_versions) enc->symbol_versions[loop] = symbol_versions[loop];
+        if (symbol_positions) enc->symbol_positions[loop] = symbol_positions[loop];
     }
 
-    //generate JABCode
-    if(generateJABCode(enc, data) != 0)
-    {
+    // generate JABCode
+    if (generateJABCode(enc, data) != 0) {
         reportError("Creating jab code failed");
         destroyEncode(enc);
         cleanMemory();
         return 1;
     }
 
-    //save bitmap in image file
+    // save bitmap in image file
     jab_int32 result = 0;
-    if(color_space == 0)
-    {
-        if(!saveImage(enc->bitmap, filename))
-        {
+    if (color_space == 0) {
+        if (!saveImage(enc->bitmap, filename)) {
             reportError("Saving png image failed");
             result = 1;
         }
-    }
-    else if(color_space == 1)
-    {
-        if(!saveImageCMYK(enc->bitmap, 0, filename))
-        {
+    } else if (color_space == 1) {
+        if (!saveImageCMYK(enc->bitmap, 0, filename)) {
             reportError("Saving tiff image failed");
             result = 1;
         }
@@ -256,7 +271,7 @@ jab_int32 generate(
 
     destroyEncode(enc);
     cleanMemory();
-    if(clearSource == JNI_TRUE) remove(sourcePath);
+    if (clearSource == JNI_TRUE) remove(sourcePath);
     return result;
 }
 
@@ -278,20 +293,15 @@ JNIEXPORT jbyteArray JNICALL Java_de_cyb3rko_jabcodelib_JabCodeLib_detect(JNIEnv
  * @brief JNICall to the Kotlin 'generate' function
  * @param env the JNIEnv instance
  * @param thiz the calling Java object (unused)
- * @param data the data to be included in the code
+ * @param sourcePath the absolute path of the file containing data to be included in the code
  * @param imagePath the absolute path of the image to be analyzed
- * @return jByteArray containing JABCode content
+ * @param options the options object containing configuration
+ * @param clearSource wether to delete the source file after successful generation
+ * @return 1: success | 0: failure
  */
-JNIEXPORT int JNICALL Java_de_cyb3rko_jabcodelib_JabCodeLib_generate(JNIEnv *env,
-                                                                     __attribute__((unused))
-                                                                     jobject thiz,
-                                                                     jstring sourcePath,
-                                                                     jstring imagePath,
-                                                                     jboolean clearSource) {
-    return generate(
-            env,
-            (*env)->GetStringUTFChars(env, sourcePath, JNI_FALSE),
-            (*env)->GetStringUTFChars(env, imagePath, JNI_FALSE),
-            clearSource
-    );
+JNIEXPORT int JNICALL Java_de_cyb3rko_jabcodelib_JabCodeLib_generate(
+    JNIEnv *env, __attribute__((unused)) jobject thiz, jstring sourcePath, jstring imagePath,
+    jobject options, jboolean clearSource) {
+    return generate(env, (*env)->GetStringUTFChars(env, sourcePath, JNI_FALSE),
+                    (*env)->GetStringUTFChars(env, imagePath, JNI_FALSE), options, clearSource);
 }

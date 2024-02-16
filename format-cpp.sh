@@ -1,5 +1,5 @@
 #!/bin/sh
-FILES="lib/src/main/cpp/jabcodelib.c lib/src/main/cpp/jabreader.h"
+FILES="lib/src/main/cpp/jabcodelib.c"
 echo "Formatting '${FILES}'..."
 # shellcheck disable=SC2086
 clang-format -i ${FILES}

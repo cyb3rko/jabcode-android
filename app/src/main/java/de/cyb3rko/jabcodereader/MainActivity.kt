@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.google.common.util.concurrent.ListenableFuture
+import de.cyb3rko.jabcodelib.JabCodeGenerationOptions
 import de.cyb3rko.jabcodelib.JabCodeLib
 import de.cyb3rko.jabcodereader.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
@@ -57,13 +58,15 @@ class MainActivity : AppCompatActivity() {
     override fun onPostCreate(savedInstanceState: Bundle?) {
         super.onPostCreate(savedInstanceState)
         val file = File(applicationContext.cacheDir, "data.txt")
-        val file2 = File(applicationContext.cacheDir, "result.png")
         if (!file.exists()) {
             FileOutputStream(file).use {
                 it.write("Testing".encodeToByteArray())
             }
         }
-        jabCodeLib.generate(file.absolutePath, file2.absolutePath)
+        val file2 = File(applicationContext.cacheDir, "result.png")
+        if (file2.exists()) file2.delete()
+        val generationOptions = JabCodeGenerationOptions(colorNumber = 4, moduleSize = 20)
+        jabCodeLib.generate(file.absolutePath, file2.absolutePath, generationOptions)
     }
 
     private fun checkCameraHardware(context: Context): Boolean {

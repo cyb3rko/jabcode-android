@@ -47,5 +47,10 @@ class JabCodeLib {
      * @return [ByteArray] containing raw data as found in the code, null if
      * nothing found inside the image.
      */
-    external fun generate(sourcePath: String, imagePath: String, clearSource: Boolean = false): Int
+    external fun generate(
+        sourcePath: String,
+        imagePath: String,
+        options: JabCodeGenerationOptions? = null,
+        clearSource: Boolean = false
+    ): Int
 }
