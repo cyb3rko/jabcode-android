@@ -54,6 +54,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPostCreate(savedInstanceState: Bundle?) {
+        super.onPostCreate(savedInstanceState)
+        val file = File(applicationContext.cacheDir, "data.txt")
+        val file2 = File(applicationContext.cacheDir, "result.png")
+        if (!file.exists()) {
+            FileOutputStream(file).use {
+                it.write("Testing".encodeToByteArray())
+            }
+        }
+        jabCodeLib.generate(file.absolutePath, file2.absolutePath)
+    }
+
     private fun checkCameraHardware(context: Context): Boolean {
         return context.packageManager.hasSystemFeature("android.hardware.camera")
     }

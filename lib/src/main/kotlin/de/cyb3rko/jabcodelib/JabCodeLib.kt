@@ -31,11 +31,21 @@ class JabCodeLib {
 
     /**
      * Native interface between the jabcode implementation and Kotlin/Java
-     * applications.
+     * applications for code scanning.
      *
      * @param imagePath the absolute path of the image to be analyzed
      * @return [ByteArray] containing raw data as found in the code, null if
      * nothing found inside the image.
      */
     external fun detect(imagePath: String): ByteArray?
+
+    /**
+     * Native interface between the jabcode implementation and Kotlin/Java
+     * applications for code generation.
+     *
+     * @param imagePath the absolute path of the image to be analyzed
+     * @return [ByteArray] containing raw data as found in the code, null if
+     * nothing found inside the image.
+     */
+    external fun generate(sourcePath: String, imagePath: String, clearSource: Boolean = false): Int
 }
