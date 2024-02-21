@@ -26,6 +26,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "JAB Code Reader"
+rootProject.name = "JAB Code Android"
 include(":app")
 include(":lib")
