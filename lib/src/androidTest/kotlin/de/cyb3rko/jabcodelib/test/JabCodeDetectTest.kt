@@ -18,7 +18,7 @@ private const val imageNegative = "iVBORw0KGgoAAAANSUhEUgAAAH8AAADOCAMAAAAg9S3xA
  * Instrumented test, which will scan image files with and without JAB Code
  */
 @RunWith(AndroidJUnit4::class)
-internal class InstrumentedTest {
+internal class JabCodeDetectTest {
     @Test
     fun scanSampleImagePositive() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext

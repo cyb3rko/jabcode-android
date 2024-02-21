@@ -109,6 +109,10 @@ jab_boolean parseCommandLineParameters(JNIEnv *env, const char *sourcePath, cons
     jab_int32 file_size;
     fseek(fp, 0, SEEK_END);
     file_size = ftell(fp);
+    if (file_size == 0) {
+        reportError("Input data file empty");
+        return 0;
+    }
     if (data) free(data);
     data = (jab_data *) malloc(sizeof(jab_data) + file_size * sizeof(jab_char));
     if (!data) {
