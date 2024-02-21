@@ -65,7 +65,11 @@ class MainActivity : AppCompatActivity() {
         }
         val file2 = File(applicationContext.cacheDir, "result.png")
         if (file2.exists()) file2.delete()
-        val generationOptions = JabCodeGenerationOptions(colorNumber = 4, moduleSize = 20)
+        val generationOptions = JabCodeGenerationOptions(
+            symbolNumber = 3,
+            symbolPosition = intArrayOf(0, 3, 2),
+            symbolVersion = intArrayOf(3, 2, 4, 2, 3, 2)
+        )
         jabCodeLib.generate(file.absolutePath, file2.absolutePath, generationOptions)
     }
 

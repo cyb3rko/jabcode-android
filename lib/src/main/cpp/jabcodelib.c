@@ -32,12 +32,14 @@ jab_int32 symbol_positions_number = 0;
 jab_vector2d *symbol_versions = 0;
 jab_int32 symbol_versions_number = 0;
 jab_int32 *symbol_ecc_levels = 0;
+jab_int32 symbol_ecc_levels_number = 0;
 jab_int32 color_space = 0;
 jclass optionsClass;
 
 struct {
     const char *integer;
-} JAVA_TYPES = {"I"};
+    const char *integerArray;
+} JAVA_TYPES = {"I", "[I"};
 
 /**
  * @brief Helper function to fetch a field ID of a Java object
@@ -51,9 +53,17 @@ jfieldID getJavaFieldId(JNIEnv *env, jobject object, const char *fieldName, cons
 /**
  * @brief Helper function to fetch an integer attribute of a Java object
  */
-int getJavaIntField(JNIEnv *env, jobject object, const char *fieldName, const char *fieldType) {
-    jfieldID fid = getJavaFieldId(env, object, fieldName, fieldType);
+int getJavaIntField(JNIEnv *env, jobject object, const char *fieldName) {
+    jfieldID fid = getJavaFieldId(env, object, fieldName, JAVA_TYPES.integer);
     return (*env)->GetIntField(env, object, fid);
+}
+
+/**
+ * @brief Helper function to fetch an integer array attribute of a Java object
+ */
+jintArray getJavaIntArrayField(JNIEnv *env, jobject object, const char *fieldName) {
+    jfieldID fid = getJavaFieldId(env, object, fieldName, JAVA_TYPES.integerArray);
+    return (*env)->GetObjectField(env, object, fid);
 }
 
 /**
@@ -120,20 +130,126 @@ jab_boolean parseCommandLineParameters(JNIEnv *env, const char *sourcePath, cons
 
     if (options != NULL) {
         // --color-number logic
-        int tmp = getJavaIntField(env, options, "colorNumber", JAVA_TYPES.integer);
-        if (tmp != 8) {
-            color_number = tmp;
+        int tmpInt = getJavaIntField(env, options, "colorNumber");
+        if (tmpInt != 8) {
+            color_number = tmpInt;
             if (color_number != 4) {
                 reportError("Invalid color number. Supported color number includes 4 and 8.");
                 return 0;
             }
         }
         // --module-size logic
-        tmp = getJavaIntField(env, options, "moduleSize", JAVA_TYPES.integer);
-        if (tmp != 12) {
-            module_size = tmp;
+        tmpInt = getJavaIntField(env, options, "moduleSize");
+        if (tmpInt != 12) {
+            module_size = tmpInt;
             if (module_size < 0) {
                 printf("Invalid moduleSize. Number must be non-negative.");
+                return 0;
+            }
+        }
+        // --symbol-width logic
+        tmpInt = getJavaIntField(env, options, "symbolWidth");
+        if (tmpInt != 0) {
+            master_symbol_width = tmpInt;
+            if (master_symbol_width < 0) {
+                printf("Invalid symbolWidth. Number must be non-negative.");
+                return 0;
+            }
+        }
+        // --symbol-height logic
+        tmpInt = getJavaIntField(env, options, "symbolHeight");
+        if (tmpInt != 0) {
+            master_symbol_height = tmpInt;
+            if (master_symbol_height < 0) {
+                printf("Invalid symbolHeight. Number must be non-negative.");
+                return 0;
+            }
+        }
+        // --symbol-number logic
+        tmpInt = getJavaIntField(env, options, "symbolNumber");
+        if (tmpInt != 1) {
+            symbol_number = tmpInt;
+            if (symbol_number < 1 || symbol_number > MAX_SYMBOL_NUMBER) {
+                reportError("Invalid symbol number (must be 1 - 61).");
+                return 0;
+            }
+        }
+        // --ecc-level logic
+        jintArray tmpIntArray = getJavaIntArrayField(env, options, "eccLevel");
+        jsize arraySize = (*env)->GetArrayLength(env, tmpIntArray);
+        symbol_ecc_levels = (jab_int32 *) calloc(symbol_number, sizeof(jab_int32));
+        if (arraySize > 0) {
+            if (!symbol_ecc_levels) {
+                reportError("Memory allocation for symbol ecc levels failed");
+                return 0;
+            }
+            int *customLevels = (*env)->GetIntArrayElements(env, tmpIntArray, 0);
+            for (jab_int32 j = 0; j < symbol_number; j++) {
+                if (j >= arraySize) break;
+                symbol_ecc_levels[j] = customLevels[j];
+                if (symbol_ecc_levels[j] < 0 || symbol_ecc_levels[j] > 10) {
+                    reportError("Invalid error correction level (must be 1 - 10).");
+                    (*env)->ReleaseIntArrayElements(env, tmpIntArray, customLevels, 0);
+                    return 0;
+                }
+                symbol_ecc_levels_number++;
+            }
+            (*env)->ReleaseIntArrayElements(env, tmpIntArray, customLevels, 0);
+        }
+        // --symbol-version logic
+        tmpIntArray = getJavaIntArrayField(env, options, "symbolVersion");
+        arraySize = (*env)->GetArrayLength(env, tmpIntArray);
+        symbol_versions = (jab_vector2d *) calloc(symbol_number, sizeof(jab_vector2d));
+        if (arraySize > 0) {
+            if (!symbol_versions) {
+                reportError("Memory allocation for symbol versions failed");
+                return 0;
+            }
+            int *customVersions = (*env)->GetIntArrayElements(env, tmpIntArray, 0);
+            for (jab_int32 j = 0; j < symbol_number; j++) {
+                if (arraySize < (j + 1) * 2) break;
+                symbol_versions[j].x = customVersions[j * 2];
+                symbol_versions[j].y = customVersions[j * 2 + 1];
+                if (symbol_versions[j].x < 1 || symbol_versions[j].x > 32 ||
+                    symbol_versions[j].y < 1 || symbol_versions[j].y > 32) {
+                    reportError("Invalid symbol side version (must be 1 - 32).");
+                    (*env)->ReleaseIntArrayElements(env, tmpIntArray, customVersions, 0);
+                    return 0;
+                }
+                symbol_versions_number++;
+            }
+            (*env)->ReleaseIntArrayElements(env, tmpIntArray, customVersions, 0);
+        }
+        // --symbol-position logic
+        tmpIntArray = getJavaIntArrayField(env, options, "symbolPosition");
+        arraySize = (*env)->GetArrayLength(env, tmpIntArray);
+        if (arraySize > 0) {
+            if (arraySize < symbol_number) {
+                printf("Too few values for option '%s'.\n", "symbolPosition");
+            }
+            symbol_positions = (jab_int32 *) calloc(symbol_number, sizeof(jab_int32));
+            if (!symbol_positions) {
+                reportError("Memory allocation for symbol positions failed");
+                return 0;
+            }
+            int *customPositions = (*env)->GetIntArrayElements(env, tmpIntArray, 0);
+            for (jab_int32 j = 0; j < symbol_number; j++) {
+                symbol_positions[j] = customPositions[j];
+                if (symbol_positions[j] < 0 || symbol_positions[j] > 60) {
+                    reportError("Invalid symbol position value (must be 0 - 60).");
+                    (*env)->ReleaseIntArrayElements(env, tmpIntArray, customPositions, 0);
+                    return 0;
+                }
+                symbol_positions_number++;
+            }
+            (*env)->ReleaseIntArrayElements(env, tmpIntArray, customPositions, 0);
+        }
+        // --color-space logic
+        tmpInt = getJavaIntField(env, options, "colorSpace");
+        if (tmpInt != 0) {
+            color_space = tmpInt;
+            if (color_space != 1) {
+                reportError("Invalid color space (must be 0 or 1).");
                 return 0;
             }
         }
